@@ -20,6 +20,8 @@
   import { initScreenWidth, initSystemThemeListener, isDarkMode, themeName, appTitle, connectionState } from "./stores/theme";
   import { currentRoute } from "./stores/route";
   import { selectedPlaygroundTab, playgroundTabs } from "./stores/playground";
+  import PerformanceFloat from "./components/PerformanceFloat.svelte";
+  import PerformanceFloatToggle from "./components/PerformanceFloatToggle.svelte";
 
   // svelte-spa-router's types predate Svelte 5 (loadingComponent wants the
   // old class-component ComponentType); the cast is safe since Router.svelte
@@ -179,4 +181,6 @@
       </main>
     </Sidebar.Inset>
   </Sidebar.Provider>
+  <PerformanceFloat />
+  <PerformanceFloatToggle />
 </Tooltip.Provider>
