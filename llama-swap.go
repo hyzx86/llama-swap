@@ -25,7 +25,7 @@ import (
 	"github.com/mostlygeek/llama-swap/internal/server"
 	"github.com/mostlygeek/llama-swap/internal/store"
 	"github.com/mostlygeek/llama-swap/internal/swaputil"
-	"github.com/mostlygeek/llama-swap/internal/watcher"
+	configwatcher "github.com/mostlygeek/llama-swap/internal/watcher"
 )
 
 var (
@@ -163,6 +163,13 @@ func main() {
 	}
 
 	buildInfo := server.BuildInfo{Version: version, Commit: commit, Date: date}
+	if *flagConfig != "" {
+		if absConfigPath, err := filepath.Abs(*flagConfig); err == nil {
+			buildInfo.ConfigPath = absConfigPath
+		} else {
+			proxyLog.Warnf("failed to resolve config path for /api/config endpoints: %v", err)
+		}
+	}
 
 	initialStorePath := configStorePath(cfg)
 	initialStore, err := store.New(initialStorePath)

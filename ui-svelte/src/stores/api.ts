@@ -238,6 +238,48 @@ export async function setActiveProfile(name: string | null): Promise<void> {
   if (profileRevision === revision) activeProfile.set(state.active);
 }
 
+export interface ConfigFile {
+  path: string;
+  content: string;
+  mtimeMs: number;
+  size: number;
+}
+
+/** Fetch the raw config file served by the backend. */
+export async function fetchConfig(): Promise<ConfigFile> {
+  const response = await fetch("/api/config");
+  if (response.status === 501) {
+    throw new Error("Config editing is unavailable (server started without --config)");
+  }
+  if (!response.ok) {
+    throw new Error(`Failed to load config: ${response.status}`);
+  }
+  return (await response.json()) as ConfigFile;
+}
+
+/**
+ * Save the raw config file. The backend validates the YAML and writes it
+ * atomically; the running service picks the change up via --watch-config.
+ * Returns the server's response status text (empty on success).
+ */
+export async function saveConfig(content: string): Promise<void> {
+  const response = await fetch("/api/config", {
+    method: "PUT",
+    headers: { "Content-Type": "text/yaml" },
+    body: content,
+  });
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const err = (await response.json()) as { error?: string };
+      detail = err.error ?? "";
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(detail || `Failed to save config: ${response.status}`);
+  }
+}
+
 // Fetch version info when connected
 connectionState.subscribe(async (status) => {
   if (status === "connected") {

@@ -38,6 +38,12 @@ type Server struct {
 	build    BuildInfo
 	hardware *hw.HardwareSnapshot
 
+	// configPath is the file served by the /api/config endpoints; empty when
+	// the server was started with only -config-dir. configWriteMu serialises
+	// concurrent PUTs so the temp-file + rename sequence stays atomic.
+	configPath    string
+	configWriteMu sync.Mutex
+
 	profileMu     sync.RWMutex
 	activeProfile string
 
@@ -156,6 +162,10 @@ type BuildInfo struct {
 	Version string
 	Commit  string
 	Date    string
+	// ConfigPath is the absolute path of the -config file the server was
+	// started with. Empty when only -config-dir was provided; the
+	// /api/config endpoints return 501 in that case.
+	ConfigPath string
 }
 
 func New(cfg config.Config, muxlog *logmon.Monitor, proxylog *logmon.Monitor, upstreamlog *logmon.Monitor, perfMon *perf.Monitor, st *store.Store, build BuildInfo, hardware *hw.HardwareSnapshot) (*Server, error) {
@@ -198,6 +208,7 @@ func New(cfg config.Config, muxlog *logmon.Monitor, proxylog *logmon.Monitor, up
 		hardware:    hardware,
 		local:       local,
 		peer:        peer,
+		configPath:  build.ConfigPath,
 		shutdownCtx: shutdownCtx,
 		shutdownFn:  shutdownFn,
 	}
@@ -329,6 +340,8 @@ func (s *Server) routes() {
 	mux.Handle("GET /api/version", apiChain.ThenFunc(s.handleAPIVersion))
 	mux.Handle("GET /api/hardware", apiChain.ThenFunc(s.handleAPIHardware))
 	mux.Handle("GET /api/captures/{id}", apiChain.ThenFunc(s.handleAPICapture))
+	mux.Handle("GET /api/config", apiChain.ThenFunc(s.handleAPIGetConfig))
+	mux.Handle("PUT /api/config", apiChain.ThenFunc(s.handleAPIPutConfig))
 
 	s.mux = mux
 	s.handler = chain.New(CreateRequestLogMiddleware(s.proxylog), CreateCORSMiddleware()).Then(mux)

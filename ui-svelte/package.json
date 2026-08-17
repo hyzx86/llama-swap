@@ -34,10 +34,12 @@
     "vitest": "^4.1.0"
   },
   "dependencies": {
+    "@monaco-editor/loader": "^1.7.0",
     "@tanstack/table-core": "^8.21.3",
     "chart.js": "4.5.1",
     "highlight.js": "^11.11.1",
     "katex": "^0.16.28",
+    "monaco-editor": "^0.56.0",
     "rehype-katex": "^7.0.1",
     "rehype-stringify": "^10.0.1",
     "remark-gfm": "^4.0.1",
@@ -46,6 +48,7 @@
     "remark-rehype": "^11.1.2",
     "svelte-spa-router": "^4.0.1",
     "unified": "^11.0.5",
-    "unist-util-visit": "^5.1.0"
+    "unist-util-visit": "^5.1.0",
+    "yaml": "^2.9.0"
   }
 }

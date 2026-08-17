@@ -1,6 +1,6 @@
 <script lang="ts">
   import { link } from "svelte-spa-router";
-  import { FerrisWheel, Boxes, Activity, ScrollText, Gauge, Cpu, Sun, Moon, Monitor, ChevronRight, Settings } from "@lucide/svelte";
+  import { FerrisWheel, Boxes, Activity, ScrollText, Gauge, Cpu, Sun, Moon, Monitor, ChevronRight, Settings, FileCog } from "@lucide/svelte";
   import * as Sidebar from "$lib/components/ui/sidebar/index.js";
   import * as Collapsible from "$lib/components/ui/collapsible/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
@@ -110,6 +110,17 @@
                 <a href="/playground" use:link {...props}>
                   <FerrisWheel />
                   <span class={$playgroundActivity ? "activity-link" : ""}>Playground</span>
+                </a>
+              {/snippet}
+            </Sidebar.MenuButton>
+          </Sidebar.MenuItem>
+
+          <Sidebar.MenuItem>
+            <Sidebar.MenuButton isActive={isActive("/config", $currentRoute)} tooltipContent="Config">
+              {#snippet child({ props })}
+                <a href="/config" use:link {...props}>
+                  <FileCog />
+                  <span>Config</span>
                 </a>
               {/snippet}
             </Sidebar.MenuButton>
