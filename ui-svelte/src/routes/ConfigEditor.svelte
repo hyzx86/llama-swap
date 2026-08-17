@@ -4,17 +4,14 @@
   import * as Button from "$lib/components/ui/button/index.js";
   import { parseDocument } from "yaml";
   import type { Document } from "yaml";
-  import { buildTree } from "$lib/config/yamlTree";
   import { fetchConfig, saveConfig } from "../stores/api";
   import type { ConfigFile } from "../stores/api";
-  import ConfigTree from "./config/ConfigTree.svelte";
   import ConfigMonacoEditor from "./config/ConfigMonacoEditor.svelte";
 
   let doc = $state<Document | null>(null);
   let config = $state<ConfigFile | null>(null);
   let raw = $state("");
   let loadedText = $state("");
-  let selectedPath = $state<string[]>([]);
   let loading = $state(false);
   let saving = $state(false);
   let error = $state<string | null>(null);
@@ -25,7 +22,6 @@
   let rawTimer: ReturnType<typeof setTimeout> | null = null;
 
   const dirty = $derived(!!config && raw !== loadedText);
-  const tree = $derived.by(() => doc ? buildTree(doc) : []);
 
   async function load() {
     console.log('[ConfigEditor] load() called');
@@ -55,9 +51,24 @@
     }
   }
 
-  onMount(load);
+  // Ctrl/Cmd+S saves the config, mirroring the Save button's enabled state.
+  function handleKeyDown(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (config && dirty && !saving && !rawError) {
+        void save();
+      }
+    }
+  }
 
-  // Raw edits are re-parsed (debounced) into the document so the tree stays in sync.
+  onMount(() => {
+    void load();
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  });
+
+  // Raw edits are re-parsed (debounced) to surface YAML errors in the banner.
   // Invalid YAML is shown but not applied until fixed.
   function onRawInput(text: string) {
     raw = text;
@@ -71,10 +82,6 @@
         rawError = null;
       }
     }, 300);
-  }
-
-  function selectNode(path: string[]) {
-    selectedPath = path;
   }
 
   async function save() {
@@ -141,18 +148,13 @@
       {loading ? "Loading config…" : "No config loaded."}
     </div>
   {:else}
-    <div class="flex min-h-0 flex-1">
-      <div class="w-64 shrink-0 overflow-y-auto border-r">
-        <ConfigTree nodes={tree} selectedPath={selectedPath} onSelect={selectNode} />
-      </div>
-      <div class="min-h-0 flex-1 p-3">
-        {#if rawError}
-          <div class="mb-2 flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-xs text-destructive">
-            <FileWarning class="size-3.5 shrink-0" /> {rawError}
-          </div>
-        {/if}
-        <ConfigMonacoEditor bind:value={raw} language="yaml" onChange={onRawInput} />
-      </div>
+    <div class="min-h-0 flex-1 p-3">
+      {#if rawError}
+        <div class="mb-2 flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-xs text-destructive">
+          <FileWarning class="size-3.5 shrink-0" /> {rawError}
+        </div>
+      {/if}
+      <ConfigMonacoEditor bind:value={raw} language="yaml" onChange={onRawInput} />
     </div>
   {/if}
 </div>

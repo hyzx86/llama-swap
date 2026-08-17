@@ -17,6 +17,36 @@
   let monacoEditor: editor.IStandaloneCodeEditor | null = null;
   let editorLoaded = $state(false);
 
+  // Persist the editor's view state (scroll position + cursor) in the browser
+  // so reopening the editor restores the last scroll position.
+  const VIEW_STATE_KEY = "llama-swap-config-editor-view-state";
+  let scrollSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function saveViewState(): void {
+    if (!monacoEditor) return;
+    try {
+      const state = monacoEditor.saveViewState();
+      if (state) localStorage.setItem(VIEW_STATE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.error("Failed to save editor view state:", e);
+    }
+  }
+
+  function restoreViewState(): void {
+    if (!monacoEditor) return;
+    try {
+      const saved = localStorage.getItem(VIEW_STATE_KEY);
+      if (!saved) return;
+      const state = JSON.parse(saved);
+      // Defer so the freshly set content is laid out before restoring scroll.
+      requestAnimationFrame(() => {
+        monacoEditor?.restoreViewState(state);
+      });
+    } catch (e) {
+      console.error("Failed to restore editor view state:", e);
+    }
+  }
+
   onMount(async () => {
     try {
       // Configure Monaco to load from CDN
@@ -55,12 +85,23 @@
           onChange?.(newValue);
         }
       });
+
+      // Persist the scroll position (debounced) as the user scrolls.
+      monacoEditor!.onDidScrollChange(() => {
+        if (scrollSaveTimer) clearTimeout(scrollSaveTimer);
+        scrollSaveTimer = setTimeout(saveViewState, 200);
+      });
+
+      // Restore the last scroll position for this editor.
+      restoreViewState();
     } catch (err) {
       console.error("Failed to load Monaco Editor:", err);
     }
   });
 
   onDestroy(() => {
+    if (scrollSaveTimer) clearTimeout(scrollSaveTimer);
+    saveViewState(); // capture the final position before disposal
     monacoEditor?.dispose();
     monacoEditor = null;
   });
@@ -69,6 +110,7 @@
   $effect(() => {
     if (monacoEditor !== null && value !== monacoEditor.getValue()) {
       monacoEditor.setValue(value);
+      restoreViewState();
     }
   });
 </script>

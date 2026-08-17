@@ -247,7 +247,9 @@ export interface ConfigFile {
 
 /** Fetch the raw config file served by the backend. */
 export async function fetchConfig(): Promise<ConfigFile> {
-  const response = await fetch("/api/config");
+  // no-store so Reload always re-reads the file from disk rather than a
+  // cached browser response.
+  const response = await fetch("/api/config", { cache: "no-store" });
   if (response.status === 501) {
     throw new Error("Config editing is unavailable (server started without --config)");
   }
