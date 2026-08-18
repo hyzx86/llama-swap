@@ -82,6 +82,7 @@ llama-swap supports many more features to customize how you want to manage your 
 | `aliases` | serve a model with different names             |
 | `filters` | modify requests before sending to the upstream |
 | `profiles` | switch model ID replacements at runtime       |
+| `reasoningEffort` | translate `reasoning_effort` to llama.cpp `reasoning_budget_tokens` |
 | `...`     | And many more tweaks                           |
 
 ## Full Configuration Example

@@ -15,7 +15,7 @@ import (
 
 func TestServer_ApplyFilters(t *testing.T) {
 	t.Run("useModelName rewrite", func(t *testing.T) {
-		out, err := applyFilters([]byte(`{"model":"alias","temp":1}`), "alias", "real-model", config.Filters{})
+		out, err := applyFilters([]byte(`{"model":"alias","temp":1}`), "alias", "real-model", config.Filters{}, config.ReasoningEffortConfig{})
 		if err != nil {
 			t.Fatalf("applyFilters: %v", err)
 		}
@@ -29,7 +29,7 @@ func TestServer_ApplyFilters(t *testing.T) {
 			StripParams: "temperature",
 			SetParams:   map[string]any{"top_p": 0.9},
 		}
-		out, err := applyFilters([]byte(`{"model":"m","temperature":0.7}`), "m", "", f)
+		out, err := applyFilters([]byte(`{"model":"m","temperature":0.7}`), "m", "", f, config.ReasoningEffortConfig{})
 		if err != nil {
 			t.Fatalf("applyFilters: %v", err)
 		}
@@ -46,7 +46,7 @@ func TestServer_ApplyFilters(t *testing.T) {
 			SetParams:     map[string]any{"top_p": 0.5},
 			SetParamsByID: map[string]map[string]any{"alias": {"top_p": 0.1}},
 		}
-		out, err := applyFilters([]byte(`{"model":"alias"}`), "alias", "", f)
+		out, err := applyFilters([]byte(`{"model":"alias"}`), "alias", "", f, config.ReasoningEffortConfig{})
 		if err != nil {
 			t.Fatalf("applyFilters: %v", err)
 		}
@@ -54,6 +54,107 @@ func TestServer_ApplyFilters(t *testing.T) {
 			t.Errorf("top_p = %v, want 0.1", got)
 		}
 	})
+}
+
+func TestServer_ApplyReasoningEffort(t *testing.T) {
+	enabled := config.ReasoningEffortConfig{
+		Enable:  true,
+		Budgets: config.DefaultReasoningEffortBudgets(),
+	}
+	disabled := config.ReasoningEffortConfig{}
+
+	tests := []struct {
+		name             string
+		body             string
+		cfg              config.ReasoningEffortConfig
+		wantBudgetExists bool
+		wantBudget       int
+		wantEffortKept   bool
+	}{
+		{name: "off -> 0", body: `{"model":"m","reasoning_effort":"off"}`, cfg: enabled, wantBudgetExists: true, wantBudget: 0, wantEffortKept: false},
+		{name: "low -> 512", body: `{"model":"m","reasoning_effort":"low"}`, cfg: enabled, wantBudgetExists: true, wantBudget: 512, wantEffortKept: false},
+		{name: "medium -> 2048", body: `{"model":"m","reasoning_effort":"medium"}`, cfg: enabled, wantBudgetExists: true, wantBudget: 2048, wantEffortKept: false},
+		{name: "high -> 8192", body: `{"model":"m","reasoning_effort":"high"}`, cfg: enabled, wantBudgetExists: true, wantBudget: 8192, wantEffortKept: false},
+		{name: "max -> -1", body: `{"model":"m","reasoning_effort":"max"}`, cfg: enabled, wantBudgetExists: true, wantBudget: -1, wantEffortKept: false},
+		{name: "missing field -> untouched", body: `{"model":"m"}`, cfg: enabled, wantBudgetExists: false, wantEffortKept: false},
+		{name: "unknown value -> untouched", body: `{"model":"m","reasoning_effort":"minimal"}`, cfg: enabled, wantBudgetExists: false, wantEffortKept: true},
+		{name: "disabled -> untouched", body: `{"model":"m","reasoning_effort":"low"}`, cfg: disabled, wantBudgetExists: false, wantEffortKept: true},
+		{name: "case-insensitive", body: `{"model":"m","reasoning_effort":"LOW"}`, cfg: enabled, wantBudgetExists: true, wantBudget: 512, wantEffortKept: false},
+		{name: "non-string value -> untouched", body: `{"model":"m","reasoning_effort":5}`, cfg: enabled, wantBudgetExists: false, wantEffortKept: true},
+		{name: "explicit budget wins over effort", body: `{"model":"m","reasoning_budget_tokens":123,"reasoning_effort":"low"}`, cfg: enabled, wantBudgetExists: true, wantBudget: 123, wantEffortKept: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := applyReasoningEffort([]byte(tt.body), tt.cfg)
+			if err != nil {
+				t.Fatalf("applyReasoningEffort: %v", err)
+			}
+
+			budget := gjson.GetBytes(out, "reasoning_budget_tokens")
+			if tt.wantBudgetExists {
+				if !budget.Exists() || budget.Int() != int64(tt.wantBudget) {
+					t.Errorf("reasoning_budget_tokens = %s, want %d", budget.Raw, tt.wantBudget)
+				}
+			} else if budget.Exists() {
+				t.Errorf("reasoning_budget_tokens = %s, want absent", budget.Raw)
+			}
+
+			effort := gjson.GetBytes(out, "reasoning_effort")
+			if tt.wantEffortKept && !effort.Exists() {
+				t.Errorf("reasoning_effort was removed, want kept")
+			}
+			if !tt.wantEffortKept && effort.Exists() {
+				t.Errorf("reasoning_effort = %s, want removed", effort.Raw)
+			}
+
+			// model must survive the rewrite in every case
+			if got := gjson.GetBytes(out, "model").String(); got != "m" {
+				t.Errorf("model = %q, want m", got)
+			}
+		})
+	}
+}
+
+func TestReasoningEffortConfig_BudgetFor(t *testing.T) {
+	cfg := config.ReasoningEffortConfig{Budgets: config.DefaultReasoningEffortBudgets()}
+
+	tests := []struct {
+		effort string
+		want   int
+		ok     bool
+	}{
+		{"off", 0, true},
+		{"low", 512, true},
+		{"medium", 2048, true},
+		{"high", 8192, true},
+		{"max", -1, true},
+		{"High", 8192, true}, // case-insensitive
+		{" low ", 512, true}, // trims whitespace
+		{"", 0, false},
+		{"minimal", 0, false},
+		{"xhigh", 0, false},
+	}
+
+	for _, tt := range tests {
+		budget, ok := cfg.BudgetFor(tt.effort)
+		if ok != tt.ok || budget != tt.want {
+			t.Errorf("BudgetFor(%q) = (%d, %v), want (%d, %v)", tt.effort, budget, ok, tt.want, tt.ok)
+		}
+	}
+
+	// custom mapping overrides defaults for the same key, and falls back to
+	// defaults for keys it does not define (merge semantics)
+	custom := config.ReasoningEffortConfig{Budgets: map[string]int{"low": 100}}
+	if budget, ok := custom.BudgetFor("low"); !ok || budget != 100 {
+		t.Errorf("custom BudgetFor(low) = (%d, %v), want (100, true)", budget, ok)
+	}
+	if budget, ok := custom.BudgetFor("high"); !ok || budget != 8192 {
+		t.Errorf("custom BudgetFor(high) = (%d, %v), want (8192, true) from default", budget, ok)
+	}
+	if _, ok := custom.BudgetFor("minimal"); ok {
+		t.Error("custom BudgetFor(minimal) should not exist (not in defaults either)")
+	}
 }
 
 func TestServer_ResolveFilters_QualifiedPeer(t *testing.T) {

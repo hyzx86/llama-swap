@@ -11,6 +11,7 @@ import (
 	"github.com/mostlygeek/llama-swap/internal/chain"
 	"github.com/mostlygeek/llama-swap/internal/config"
 	"github.com/mostlygeek/llama-swap/internal/swaputil"
+	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
@@ -51,7 +52,7 @@ func CreateFilterMiddleware(cfg config.Config) chain.Middleware {
 				return
 			}
 
-			body, err = applyFilters(body, data.Model, useModelName, filters)
+			body, err = applyFilters(body, data.Model, useModelName, filters, cfg.ReasoningEffort)
 			if err != nil {
 				swaputil.SendResponse(w, r, http.StatusInternalServerError, err.Error())
 				return
@@ -125,8 +126,9 @@ func resolveFilters(cfg config.Config, requested string) (useModelName string, f
 
 // applyFilters rewrites the JSON body in place. Order matches the legacy
 // ProxyManager: useModelName, stripParams, setParams, then setParamsByID (which
-// can override setParams).
-func applyFilters(body []byte, requested, useModelName string, f config.Filters) ([]byte, error) {
+// can override setParams). The reasoning-effort translation (if enabled) runs
+// last so it takes precedence over any setParams override of the budget field.
+func applyFilters(body []byte, requested, useModelName string, f config.Filters, reasoningEffort config.ReasoningEffortConfig) ([]byte, error) {
 	var err error
 
 	if useModelName != "" {
@@ -155,5 +157,59 @@ func applyFilters(body []byte, requested, useModelName string, f config.Filters)
 		}
 	}
 
+	return applyReasoningEffort(body, reasoningEffort)
+}
+
+// applyReasoningEffort translates a top-level OpenAI-style "reasoning_effort"
+// field (sent by clients such as VS Code) into the llama.cpp request-level
+// "reasoning_budget_tokens" field, then removes the original field so the
+// incompatible value is not forwarded upstream.
+//
+// Behaviour:
+//   - When the translation is disabled, the body is returned unchanged.
+//   - If the request already carries an explicit reasoning_budget_tokens, it is
+//     used as-is and no conversion happens (the client's value wins).
+//   - Otherwise, if the request carries reasoning_effort, a known effort maps to
+//     its configured budget, which is written to reasoning_budget_tokens
+//     (llama.cpp also accepts the alias thinking_budget_tokens) and the original
+//     reasoning_effort field is removed. 0 disables reasoning, -1 means
+//     unlimited.
+//   - An unknown effort (e.g. "minimal", "xhigh") is left untouched: the field
+//     is preserved and no budget is set, so behaviour is unchanged for
+//     non-reasoning models.
+//   - A request with neither field is returned unchanged.
+//
+// The original reasoning_effort semantics are not altered; this only rewrites
+// the wire format for llama.cpp.
+func applyReasoningEffort(body []byte, cfg config.ReasoningEffortConfig) ([]byte, error) {
+	if !cfg.Enable {
+		return body, nil
+	}
+
+	// An explicit reasoning_budget_tokens from the client always wins; do not
+	// convert or strip anything.
+	if gjson.GetBytes(body, "reasoning_budget_tokens").Exists() {
+		return body, nil
+	}
+
+	effort := gjson.GetBytes(body, "reasoning_effort")
+	if !effort.Exists() {
+		return body, nil
+	}
+
+	budget, ok := cfg.BudgetFor(effort.String())
+	if !ok {
+		// Unknown value: leave the request untouched (keep reasoning_effort,
+		// do not set a budget).
+		return body, nil
+	}
+
+	var err error
+	if body, err = sjson.SetBytes(body, "reasoning_budget_tokens", budget); err != nil {
+		return nil, fmt.Errorf("error setting reasoning_budget_tokens in request: %w", err)
+	}
+	if body, err = sjson.DeleteBytes(body, "reasoning_effort"); err != nil {
+		return nil, fmt.Errorf("error stripping reasoning_effort from request: %w", err)
+	}
 	return body, nil
 }

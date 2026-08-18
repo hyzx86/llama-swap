@@ -98,6 +98,22 @@ startPort: 10001
 # - see #366 for more details
 sendLoadingState: true
 
+# reasoningEffort: translate a client's top-level OpenAI-style "reasoning_effort"
+# (sent by clients such as VS Code) into llama.cpp's request-level
+# "reasoning_budget_tokens" field before forwarding, then strip the original
+# field so llama.cpp never sees the incompatible value.
+# - optional, default: { enable: false }
+# - when a request already carries reasoning_budget_tokens it is used as-is and
+#   no conversion happens; a request with neither field is forwarded untouched.
+# - budgets maps effort -> thinking budget in tokens (0 disables reasoning,
+#   -1 means unlimited). Configured values override the built-in defaults;
+#   efforts not listed fall back to: off=0, low=512, medium=2048, high=8192, max=-1
+# reasoningEffort:
+#   enable: true
+#   budgets:
+#     low: 512
+#     medium: 2048
+
 # includeAliasesInList: present aliases within the /v1/models OpenAI API listing
 # - optional, default: false
 # - when true, model aliases will be output to the API model listing duplicating

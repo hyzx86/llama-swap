@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -184,6 +185,62 @@ type Config struct {
 
 	// upstream controls behaviour of the /upstream passthrough endpoint
 	Upstream UpstreamConfig `yaml:"upstream"`
+
+	// ReasoningEffort maps an OpenAI-style top-level "reasoning_effort" value
+	// (sent by clients such as VS Code) to a llama.cpp request-level thinking
+	// budget. When a request carries reasoning_effort, llama-swap rewrites the
+	// body to set reasoning_budget_tokens to the mapped value and removes the
+	// original field before forwarding, so llama.cpp never sees the
+	// incompatible field. See ReasoningEffortConfig.
+	ReasoningEffort ReasoningEffortConfig `yaml:"reasoningEffort"`
+}
+
+// ReasoningEffortConfig controls the reasoning_effort -> reasoning_budget_tokens
+// translation applied to JSON chat/completions requests before they are
+// forwarded to llama.cpp.
+type ReasoningEffortConfig struct {
+	// Enable turns the translation on. When false (the default) requests are
+	// forwarded untouched.
+	Enable bool `yaml:"enable"`
+
+	// Budgets maps a reasoning_effort value to a llama.cpp thinking budget in
+	// tokens. The mapped value is written to the request-level
+	// "reasoning_budget_tokens" field (llama.cpp also accepts the alias
+	// "thinking_budget_tokens"). A value of 0 disables reasoning for the
+	// request; -1 means "unlimited" (llama.cpp falls back to the server's
+	// --reasoning-budget). Keys are matched case-insensitively.
+	Budgets map[string]int `yaml:"budgets"`
+}
+
+// DefaultReasoningEffortBudgets returns the built-in reasoning_effort ->
+// reasoning_budget_tokens mapping used when the config does not override it.
+func DefaultReasoningEffortBudgets() map[string]int {
+	return map[string]int{
+		"off":    0,
+		"low":    512,
+		"medium": 2048,
+		"high":   8192,
+		"max":    -1,
+	}
+}
+
+// BudgetFor returns the thinking budget for the given reasoning_effort value.
+// The lookup is case-insensitive and trims surrounding whitespace. ok is false
+// when the value is empty or not present in the mapping (including custom
+// values such as "minimal" or "xhigh").
+//
+// Configured budgets override the built-in defaults; efforts not present in the
+// config fall back to the default mapping.
+func (c ReasoningEffortConfig) BudgetFor(effort string) (budget int, ok bool) {
+	key := strings.ToLower(strings.TrimSpace(effort))
+	if key == "" {
+		return 0, false
+	}
+	if budget, found := c.Budgets[key]; found {
+		return budget, true
+	}
+	budget, found := DefaultReasoningEffortBudgets()[key]
+	return budget, found
 }
 
 // RoutingConfig is the canonical, normalized routing/scheduling configuration.

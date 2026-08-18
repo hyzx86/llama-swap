@@ -291,6 +291,27 @@
             "default": false,
             "description": "Inject loading status updates into the reasoning field. When true, a stream of loading messages will be sent to the client."
         },
+        "reasoningEffort": {
+            "type": "object",
+            "default": {},
+            "properties": {
+                "enable": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable translation of the top-level OpenAI-style reasoning_effort field into the llama.cpp request-level reasoning_budget_tokens field. When false (default), requests are forwarded untouched."
+                },
+                "budgets": {
+                    "type": "object",
+                    "default": {},
+                    "description": "Mapping of reasoning_effort values to llama.cpp thinking budgets in tokens, written to the request-level reasoning_budget_tokens field (llama.cpp also accepts the alias thinking_budget_tokens). 0 disables reasoning, -1 means unlimited. Keys are matched case-insensitively. Configured values override the built-in defaults (off=0, low=512, medium=2048, high=8192, max=-1); efforts not listed here fall back to the defaults.",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "additionalProperties": false,
+            "description": "Translate a client's top-level reasoning_effort (e.g. from VS Code) into llama.cpp's request-level reasoning_budget_tokens before forwarding, then strip the original field. If a request already carries reasoning_budget_tokens it is used as-is and no conversion happens."
+        },
         "includeAliasesInList": {
             "type": "boolean",
             "default": false,
