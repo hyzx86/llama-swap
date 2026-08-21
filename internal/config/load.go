@@ -55,6 +55,9 @@ func LoadConfigFromReader(r io.Reader) (Config, error) {
 		return Config{}, err
 	}
 	config.Macros = macroConfig.Macros
+	// Preserve the declaration order of models and peers from the YAML file
+	// so the UI can mirror the file order (unless items are favorited).
+	config.ModelOrder, config.PeerOrder = extractDeclOrder(yamlStr)
 	for modelID, modelConfig := range config.Models {
 		modelConfig.Macros = macroConfig.Models[modelID].Macros
 		config.Models[modelID] = modelConfig
@@ -350,4 +353,46 @@ func normalizeHeaderNames(names []string) []string {
 		normalized = append(normalized, name)
 	}
 	return normalized
+}
+
+// extractDeclOrder returns the model and peer IDs in the order they are
+// declared under the top-level `models:` and `peers:` mappings of the YAML
+// document. It parses the raw YAML (not a Go map) so declaration order
+// survives. Missing or malformed sections simply yield empty slices.
+func extractDeclOrder(yamlStr string) (models, peers []string) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal([]byte(yamlStr), &doc); err != nil {
+		return nil, nil
+	}
+	root := &doc
+	if root.Kind == yaml.DocumentNode && len(root.Content) > 0 {
+		root = root.Content[0]
+	}
+	if root.Kind != yaml.MappingNode {
+		return nil, nil
+	}
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		var key string
+		if err := root.Content[i].Decode(&key); err != nil {
+			continue
+		}
+		val := root.Content[i+1]
+		if val.Kind != yaml.MappingNode {
+			continue
+		}
+		var order []string
+		for j := 0; j+1 < len(val.Content); j += 2 {
+			var id string
+			if err := val.Content[j].Decode(&id); err == nil {
+				order = append(order, id)
+			}
+		}
+		switch key {
+		case "models":
+			models = order
+		case "peers":
+			peers = order
+		}
+	}
+	return models, peers
 }

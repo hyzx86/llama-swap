@@ -136,12 +136,9 @@ export function handleAPIEventMessage(data: string): void {
   const message = JSON.parse(data) as APIEventEnvelope;
   switch (message.type) {
     case "modelStatus": {
-      const newModels = JSON.parse(message.data) as Model[];
-      // Sort models by name and id
-      newModels.sort((a, b) => {
-        return (a.name + a.id).localeCompare(b.name + b.id, undefined, { numeric: true });
-      });
-      models.set(newModels);
+      // Keep the order sent by the backend, which mirrors the YAML config
+      // declaration order (favorites are sorted to the top by consumers).
+      models.set(JSON.parse(message.data) as Model[]);
       break;
     }
 

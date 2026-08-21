@@ -259,6 +259,7 @@ groups:
 				UnloadTimeout:      DEFAULT_UNLOAD_TIMEOUT,
 			},
 		},
+		ModelOrder:         []string{"model1", "model2", "model3", "model4"},
 		HealthCheckTimeout: 15,
 		MetricsMaxInMemory: 1000,
 		CaptureBuffer:      5,

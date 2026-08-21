@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -498,6 +499,56 @@ func configWithModels(models ...string) config.Config {
 		cfg.Models[model] = config.ModelConfig{}
 	}
 	return cfg
+}
+
+func TestServer_ModelStatus_UsesConfigDeclarationOrder(t *testing.T) {
+	cfg := config.Config{
+		Models: map[string]config.ModelConfig{
+			"z": {},
+			"a": {},
+			"m": {},
+		},
+		ModelOrder: []string{"z", "a", "m"},
+		Peers: config.PeerDictionaryConfig{
+			"peer-b": {Proxy: "http://localhost:12345", Models: []string{"p2", "p1"}},
+			"peer-a": {Proxy: "http://localhost:12346", Models: []string{"p3"}},
+		},
+		PeerOrder: []string{"peer-b", "peer-a"},
+	}
+	s := newTestServer(newStubRouter(nil, ""), newStubRouter(nil, ""))
+	s.cfg = cfg
+
+	got := s.modelStatus()
+	ids := make([]string, 0, len(got))
+	for _, m := range got {
+		ids = append(ids, m.Id)
+	}
+	want := []string{"z", "a", "m", "peer-b/p2", "peer-b/p1", "peer-a/p3"}
+	if !slices.Equal(ids, want) {
+		t.Fatalf("modelStatus order = %v, want %v", ids, want)
+	}
+}
+
+func TestServer_ModelStatus_FallsBackToSortedOrderWithoutOrder(t *testing.T) {
+	cfg := config.Config{
+		Models: map[string]config.ModelConfig{
+			"z": {},
+			"a": {},
+			"m": {},
+		},
+	}
+	s := newTestServer(newStubRouter(nil, ""), newStubRouter(nil, ""))
+	s.cfg = cfg
+
+	got := s.modelStatus()
+	ids := make([]string, 0, len(got))
+	for _, m := range got {
+		ids = append(ids, m.Id)
+	}
+	want := []string{"a", "m", "z"}
+	if !slices.Equal(ids, want) {
+		t.Fatalf("modelStatus order = %v, want %v", ids, want)
+	}
 }
 
 func TestServer_APIPerformance_Unavailable(t *testing.T) {

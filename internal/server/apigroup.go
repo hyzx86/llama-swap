@@ -95,15 +95,12 @@ func (s *Server) handleAPIActiveProfile(w http.ResponseWriter, r *http.Request) 
 }
 
 // modelStatus returns every configured model joined with its current process
-// state (defaulting to "stopped"), followed by peer models.
+// state (defaulting to "stopped"), followed by peer models. Local models and
+// peers are ordered as declared in the YAML config so the UI mirrors the file.
 func (s *Server) modelStatus() []apiModel {
 	running := s.local.RunningModels()
 
-	ids := make([]string, 0, len(s.cfg.Models))
-	for id := range s.cfg.Models {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
+	ids := orderedConfigKeys(s.cfg.Models, s.cfg.ModelOrder)
 
 	models := make([]apiModel, 0, len(ids))
 	for _, id := range ids {
@@ -125,13 +122,43 @@ func (s *Server) modelStatus() []apiModel {
 		})
 	}
 
-	for peerID, peer := range s.cfg.Peers {
-		for _, modelID := range peer.Models {
+	for _, peerID := range orderedConfigKeys(s.cfg.Peers, s.cfg.PeerOrder) {
+		for _, modelID := range s.cfg.Peers[peerID].Models {
 			models = append(models, apiModel{Id: config.PeerModelFQN(peerID, modelID), PeerID: peerID})
 		}
 	}
 
 	return models
+}
+
+// orderedConfigKeys returns the keys of m in the order given by order. Keys of
+// m missing from order are appended in lexicographic order so the result is
+// always deterministic. When order is empty a plain lexicographic sort is
+// returned, preserving the previous behaviour.
+func orderedConfigKeys[V any](m map[string]V, order []string) []string {
+	keys := make([]string, 0, len(m))
+	if len(order) == 0 {
+		for k := range m {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		return keys
+	}
+	seen := make(map[string]bool, len(m))
+	for _, k := range order {
+		if _, ok := m[k]; ok && !seen[k] {
+			keys = append(keys, k)
+			seen[k] = true
+		}
+	}
+	var tail []string
+	for k := range m {
+		if !seen[k] {
+			tail = append(tail, k)
+		}
+	}
+	sort.Strings(tail)
+	return append(keys, tail...)
 }
 
 // handleAPIUnloadAll stops every running local process.

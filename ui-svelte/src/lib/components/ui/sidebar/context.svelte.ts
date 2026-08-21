@@ -28,6 +28,27 @@ class SidebarState {
 	#isMobile: IsMobile;
 	state = $derived.by(() => (this.open ? "expanded" : "collapsed"));
 
+	/**
+	 * Current sidebar width in pixels while the user is resizing it.
+	 * `0` means "not resized yet, use the default `--sidebar-width`".
+	 */
+	sidebarWidth = $state(0);
+	/** Whether a drag resize is currently in progress. */
+	resizing = $state(false);
+
+	/** Sets the sidebar width (in px) from a drag-resize gesture. */
+	setSidebarWidth = (width: number) => {
+		this.sidebarWidth = width;
+	};
+
+	beginResize = () => {
+		this.resizing = true;
+	};
+
+	endResize = () => {
+		this.resizing = false;
+	};
+
 	constructor(props: SidebarStateProps) {
 		this.setOpen = props.setOpen;
 		this.#isMobile = new IsMobile();
