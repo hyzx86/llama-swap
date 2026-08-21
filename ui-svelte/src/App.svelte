@@ -21,7 +21,6 @@
   import { currentRoute } from "./stores/route";
   import { selectedPlaygroundTab, playgroundTabs } from "./stores/playground";
   import PerformanceFloat from "./components/PerformanceFloat.svelte";
-  import PerformanceFloatToggle from "./components/PerformanceFloatToggle.svelte";
 
   // svelte-spa-router's types predate Svelte 5 (loadingComponent wants the
   // old class-component ComponentType); the cast is safe since Router.svelte
@@ -138,13 +137,13 @@
     <AppSidebar />
     <Sidebar.Inset class="h-screen min-w-0 overflow-hidden">
       <header
-        class="bg-background sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b px-4"
+        class="bg-background sticky top-0 z-10 flex h-14 shrink-0 flex-wrap items-center gap-2 border-b px-4"
       >
         <Sidebar.Trigger class="-ml-1" />
         <Separator orientation="vertical" class="mr-2 !h-4" />
         <h2 class="truncate pb-0 text-sm font-semibold">{sectionTitle}</h2>
         {#if $profiles.length > 0}
-          <div class="ml-auto flex items-center gap-2">
+          <div class="flex items-center gap-2">
             <span class="text-muted-foreground hidden text-xs sm:inline">Profile</span>
             <Select.Root
               type="single"
@@ -167,6 +166,7 @@
             </Select.Root>
           </div>
         {/if}
+        <PerformanceFloat class="perf-float-dock ml-auto" />
       </header>
 
       <main class="min-h-0 flex-1 overflow-auto p-4">
@@ -183,6 +183,4 @@
       </main>
     </Sidebar.Inset>
   </Sidebar.Provider>
-  <PerformanceFloat />
-  <PerformanceFloatToggle />
 </Tooltip.Provider>
