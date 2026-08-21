@@ -4,3 +4,4 @@ export const SIDEBAR_WIDTH = "min(30rem, 50vw)";
 export const SIDEBAR_WIDTH_MOBILE = "18rem";
 export const SIDEBAR_WIDTH_ICON = "3rem";
 export const SIDEBAR_KEYBOARD_SHORTCUT = "b";
+export const SIDEBAR_WIDTH_STORAGE_KEY = "sidebar_width";

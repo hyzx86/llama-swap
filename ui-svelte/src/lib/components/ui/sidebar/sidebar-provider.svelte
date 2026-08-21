@@ -40,7 +40,7 @@
 <Tooltip.Provider delayDuration={0}>
 	<div
 		data-slot="sidebar-wrapper"
-		style="--sidebar-width: {sidebar.sidebarWidth > 0 ? `${sidebar.sidebarWidth}px` : SIDEBAR_WIDTH}; --sidebar-width-icon: {SIDEBAR_WIDTH_ICON}; {style}"
+		style="--sidebar-width: {sidebar.sidebarWidth > 0 ? `min(${sidebar.sidebarWidth}px, 50vw)` : SIDEBAR_WIDTH}; --sidebar-width-icon: {SIDEBAR_WIDTH_ICON}; {style}"
 		class={cn(
 			"group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full",
 			className

@@ -30,10 +30,14 @@ function onPointerDown(e: PointerEvent) {
 	dragStartX = e.clientX;
 
 	// If the sidebar is collapsed (icon mode), expand it first so the width
-	// can be adjusted.
+	// can be adjusted. Start from the persisted width if there is one, so
+	// expand restores the last dragged position.
 	if (sidebar.state === "collapsed") {
 		sidebar.toggle();
-		dragStartWidth = Math.min(480, Math.round(window.innerWidth * MAX_WIDTH_RATIO));
+		dragStartWidth =
+			sidebar.sidebarWidth > 0
+				? sidebar.sidebarWidth
+				: Math.min(480, Math.round(window.innerWidth * MAX_WIDTH_RATIO));
 	} else {
 		const el = document.querySelector(
 			'[data-slot="sidebar-container"]'

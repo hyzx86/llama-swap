@@ -323,6 +323,7 @@
 <svelte:window onpointerdown={onDocPointerDown} onkeydown={onDocKeyDown} />
 
 {#if modelMenu}
+  {@const menu = modelMenu!}
   <Portal>
     <div
       bind:this={modelMenuRef}
@@ -336,32 +337,32 @@
         tabindex="0"
         class="hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
         onclick={() => {
-          toggleFavorite(modelMenu.model.id);
+          toggleFavorite(menu.model.id);
           closeModelMenu();
         }}
         onkeydown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            toggleFavorite(modelMenu.model.id);
+            toggleFavorite(menu.model.id);
             closeModelMenu();
           }
         }}
       >
-        <Star class={$favorites.includes(modelMenu.model.id) ? "fill-current" : ""} />
-        {$favorites.includes(modelMenu.model.id) ? "Remove from favorites" : "Add to favorites"}
+        <Star class={$favorites.includes(menu.model.id) ? "fill-current" : ""} />
+        {$favorites.includes(menu.model.id) ? "Remove from favorites" : "Add to favorites"}
       </div>
       <div
         role="menuitem"
         tabindex="0"
         class="hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
         onclick={() => {
-          copyModelId(modelMenu.model.id);
+          copyModelId(menu.model.id);
           closeModelMenu();
         }}
         onkeydown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            copyModelId(modelMenu.model.id);
+            copyModelId(menu.model.id);
             closeModelMenu();
           }
         }}
@@ -377,12 +378,12 @@
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             closeModelMenu();
-            window.location.hash = `/models/${encodeURIComponent(modelMenu.model.id)}`;
+            window.location.hash = `/models/${encodeURIComponent(menu.model.id)}`;
           }
         }}
       >
         <a
-          href="/models/{encodeURIComponent(modelMenu.model.id)}"
+          href="/models/{encodeURIComponent(menu.model.id)}"
           use:link
           class="flex items-center gap-1.5"
           onclick={(e) => {
